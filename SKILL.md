@@ -39,65 +39,50 @@ For other arXiv categories (cs.AI, cs.CR, cs.LG, cs.SE, cs.HC), filter by:
 ## Output Format (EXACT TEMPLATE)
 
 ```markdown
-# AI Safety 论文摘要 - YYYY-MM-DD
+# AI Safety 论文汇总 (YYYY-MM-DD)
 
-本文件汇总了 ai-safety 文件夹中的 X 篇论文，涵盖 AI Agent 安全、供应链安全、具身智能安全等前沿领域。
+## 1. [[paper/ai-safety/xxxxxx_Paper_Title.pdf|Paper Title]]
+- 论文链接: https://arxiv.org/abs/xxxx.xxxxx
+- 保存路径: paper/ai-safety/xxxxxx_Paper_Title.pdf
+- 时间: YYYY-MM-DD
+- 关键词: keyword1, keyword2, keyword3
+- 简介:
+  - **问题**: What problem does this paper address?
+  - **方法**: What method does the paper propose?
+  - **效果**: What results does the paper achieve?
 
----
-
-## 1. Paper Title
-
-- **arXiv:** xxxx.xxxxx
-- **会议:** Conference Name (YYYY-MM)
-- **关键词:** keyword1, keyword2, keyword3
-- **简介:**
-  - **问题:** What problem does this paper address?
-  - **方法:** What method does the paper propose?
-  - **效果:** What results does the paper achieve?
-
----
-
-## 2. Paper Title
-...
-
----
-
-## 总结
-
-本批次论文主要聚焦以下主题：
-
-1. **主题1**: Description
-2. **主题2**: Description
-3. ...
-
----
-
-## 无法获取 PDF 的论文
-
-以下论文可以获取基本信息但无法下载 PDF：
-
-| # | 论文标题 | arXiv ID | 原因 |
-|---|---------|----------|------|
-| 1 | Paper Title | xxxx.xxxxx | 链接失效/需要特殊权限 |
+## 2. [[paper/ai-safety/xxxxxx_Paper_Title2.pdf|Paper Title 2]]
+- 论文链接: https://arxiv.org/abs/xxxx.xxxxx
+- 保存路径: paper/ai-safety/xxxxxx_Paper_Title2.pdf
+- 时间: YYYY-MM-DD
+- 关键词: keyword1, keyword2, keyword3
+- 简介:
+  - **问题**: ...
+  - **方法**: ...
+  - **效果**: ...
 ```
 
-**注意：** 如果遇到能抓取到论文名字但无法获得 PDF 的情况，必须在当天 md 文件最后列出，说明原因。
+**注意：** 
+- 每个论文必须有论文链接(arXiv URL)和保存路径
+- PDF保存到 paper/ai-safety/ 文件夹
+- 格式必须严格按上述模板
 
 ## Storage Structure
 
 ```
 paper/
-├── YYYY-MM-DD.md          # Daily summary (e.g., 2026-03-19.md)
+├── 00-Inbox/              # Daily summaries (e.g., 2026-03-19.md)
 ├── ai-safety/             # AI safety papers (generic)
 ├── NDSS_YYYY/             # NDSS papers (auto-create year folder)
 ├── CCS_YYYY/
 ├── USENIX_Security_YYYY/
 ├── IEEE_SP_YYYY/
-├── 00-Inbox/              # Uncategorized
 └── scripts/               # Helper scripts
     ├── arxiv_monitor.py   # ArXiv API monitoring
     └── create_notes.py    # Note generation
 ```
+
+**Important:** Daily summary markdown files MUST be saved to `00-Inbox/` folder, not the root paper folder.
 
 **Auto-create rule:** If fetching papers for a new year (e.g., 2027), automatically create folders like `NDSS_2027/`, `CCS_2027/`, etc.
 
@@ -135,7 +120,8 @@ Fetch only USENIX Security papers
 | date | Date to fetch | yesterday |
 | conferences | 4 confs to fetch all | [NDSS, USENIX, CCS, SP] |
 | keywords | Filter for other sources | [OpenClaw, agent, mcp, safety, ...] |
-| output_dir | Paper storage path | ./paper |
+| paper_dir | Paper storage path | ./paper |
+| inbox_dir | Daily summary output | ./paper/00-Inbox |
 | use_softlink | Deduplicate with symlinks | true |
 
 ## Telemetry

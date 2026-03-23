@@ -1,82 +1,107 @@
 #!/usr/bin/env python3
-"""
-下载 NDSS 2025 论文
-"""
 import os
 import subprocess
 import time
 import re
+import urllib.request
+import urllib.error
 
 BASE_URL = "https://www.ndss-symposium.org"
-PAPER_LIST_URL = f"{BASE_URL}/ndss2025/accepted-papers/"
-OUTPUT_DIR = "/home/ubuntu/paper/NDSS_2025"
+PAPER_LIST_URL = f"{BASE_URL}/ndss2026/accepted-papers/"
+OUTPUT_DIR = "/home/ubuntu/paper/NDSS_2026"
+
+MAX_RETRIES = 10
+REQUEST_DELAY = 2
 
 def get_paper_slugs():
-    """从论文列表页面提取所有论文的 slug"""
     result = subprocess.run(
-        ["curl", "-sL", PAPER_LIST_URL],
+        ["curl", "-sL", "--retry", "5", "--connect-timeout", "60", PAPER_LIST_URL],
         capture_output=True, text=True
     )
-    # 提取论文 URL 并解析 slug
     urls = re.findall(r'href="(https://www\.ndss-symposium\.org/ndss-paper/[^"]+/)"', result.stdout)
     slugs = [url.split('/')[-2] for url in urls]
     return list(set(slugs))
 
-def get_pdf_url(slug):
-    """从论文详情页获取 PDF 下载链接"""
+def get_pdf_url(slug, retries=MAX_RETRIES):
     url = f"{BASE_URL}/ndss-paper/{slug}/"
-    result = subprocess.run(
-        ["curl", "-sL", url],
-        capture_output=True, text=True
-    )
-    # 查找 PDF 链接 - 优先使用 2025-xxx-paper.pdf 格式
-    matches = re.findall(r'wp-content/uploads/((?:2025-)?\d+-[^"]+\.pdf)', result.stdout)
-    if matches:
-        # 优先选择 2025-xxx-paper.pdf 格式
-        for match in matches:
-            if match.startswith('2025-'):
-                return f"{BASE_URL}/wp-content/uploads/{match}"
-        # 否则使用第一个
-        return f"{BASE_URL}/wp-content/uploads/{matches[0]}"
+    
+    for attempt in range(retries):
+        try:
+            result = subprocess.run(
+                ["curl", "-sL", "--retry", "3", "--connect-timeout", "60", url],
+                capture_output=True, text=True, timeout=120
+            )
+            
+            matches = re.findall(r'wp-content/uploads/([^"]+\.pdf)', result.stdout)
+            
+            if matches:
+                for match in matches:
+                    if 'paper' in match.lower():
+                        return f"{BASE_URL}/wp-content/uploads/{match}"
+                return f"{BASE_URL}/wp-content/uploads/{matches[0]}"
+            
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                continue
+            return None
+            
+        except subprocess.TimeoutExpired:
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                continue
+            return None
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                continue
+            return None
     return None
 
-def download_pdf(slug, pdf_url):
-    """下载 PDF 文件"""
-    # 清理 slug 作为文件名
-    filename = slug[:100]  # 限制文件名长度
+def download_pdf(slug, pdf_url, retries=MAX_RETRIES):
+    filename = slug[:100]
     filename = re.sub(r'[^a-zA-Z0-9\-]', '-', filename)
     filepath = os.path.join(OUTPUT_DIR, f"{filename}.pdf")
     
-    # 如果文件已存在，跳过
     if os.path.exists(filepath):
         print(f"  跳过: {filename}.pdf (已存在)")
         return True
     
-    print(f"  下载: {filename}.pdf")
-    try:
-        result = subprocess.run(
-            ["curl", "-sL", "-o", filepath, pdf_url],
-            capture_output=True, timeout=120
-        )
-    except subprocess.TimeoutExpired:
-        print(f"  失败: {filename}.pdf (超时)")
-        return False
+    for attempt in range(retries):
+        try:
+            print(f"  下载: {filename}.pdf (尝试 {attempt + 1}/{retries})")
+            result = subprocess.run(
+                ["curl", "-sL", "-o", filepath, "--retry", "3", "--connect-timeout", "60", pdf_url],
+                capture_output=True, timeout=300
+            )
+            
+            if os.path.exists(filepath):
+                size = os.path.getsize(filepath)
+                if size > 1024:
+                    return True
+                else:
+                    os.remove(filepath)
+                    print(f"  重试: {filename}.pdf (文件太小)")
+            
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                
+        except subprocess.TimeoutExpired:
+            print(f"  重试: {filename}.pdf (超时)")
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                continue
+        except Exception as e:
+            print(f"  重试: {filename}.pdf - {e}")
+            if attempt < retries - 1:
+                time.sleep(REQUEST_DELAY)
+                continue
     
-    # 检查文件是否有效（大于 1KB）
-    if os.path.exists(filepath):
-        size = os.path.getsize(filepath)
-        if size > 1024:
-            return True
-        else:
-            os.remove(filepath)
-            print(f"  失败: {filename}.pdf (文件太小，可能是错误页面)")
-            return False
     return False
 
 def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    print("获取论文列表...")
+    print("获取 NDSS 2026 论文列表...")
     slugs = get_paper_slugs()
     print(f"找到 {len(slugs)} 篇论文")
     
@@ -93,13 +118,20 @@ def main():
             else:
                 failed += 1
         else:
-            print(f"  无法获取 PDF 链接")
-            failed += 1
+            for retry in range(5):
+                time.sleep(REQUEST_DELAY)
+                pdf_url = get_pdf_url(slug, retries=3)
+                if pdf_url:
+                    if download_pdf(slug, pdf_url):
+                        success += 1
+                        break
+            else:
+                failed += 1
         
-        # 避免请求过快
-        time.sleep(0.3)
+        time.sleep(REQUEST_DELAY)
     
     print(f"\n完成! 成功: {success}, 失败: {failed}")
+    print(f"PDF 保存位置: {OUTPUT_DIR}")
 
 if __name__ == "__main__":
     main()
